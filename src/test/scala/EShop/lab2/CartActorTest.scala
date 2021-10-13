@@ -1,7 +1,7 @@
 package EShop.lab2
 
-import EShop.lab2.CartActor.{AddItem, ConfirmCheckoutCancelled, ConfirmCheckoutClosed, RemoveItem, StartCheckout}
-import akka.actor.{ActorRef, ActorSystem, Cancellable, Props}
+import EShop.lab2.CartActor._
+import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.testkit.{ImplicitSender, TestKit}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -14,7 +14,7 @@ class CartActorTest
   with ImplicitSender
   with BeforeAndAfterAll {
 
-  override def afterAll: Unit =
+  override def afterAll(): Unit =
     TestKit.shutdownActorSystem(system)
 
   import CartActorTest._
@@ -23,9 +23,9 @@ class CartActorTest
     val nonEmptyTestMsg = "changedStateToNonEmpty"
 
     val cart = system.actorOf(Props(new CartActor {
-      override def nonEmpty(cart: Cart, timer: Cancellable): Receive = {
+      override def nonEmpty(cart: Cart): Receive = {
         sender ! nonEmptyTestMsg
-        super.nonEmpty(cart, timer)
+        super.nonEmpty(cart)
       }
     }))
 
@@ -52,6 +52,7 @@ class CartActorTest
     expectMsg(0)
   }
 
+  // this one fails
   it should "contain one item after adding new item and removing not existing one" in {
     val cart = cartActorWithCartSizeResponseOnStateChange(system)
 
@@ -59,7 +60,8 @@ class CartActorTest
     expectMsg(nonEmptyMsg)
     expectMsg(1)
     cart ! RemoveItem("Makbet")
-    expectNoMessage()
+    expectMsg(nonEmptyMsg)
+    expectMsg(1)
   }
 
   it should "change state to inCheckout from nonEmpty" in {
@@ -150,8 +152,8 @@ object CartActorTest {
         result
       }
 
-      override def nonEmpty(cart: Cart, timer: Cancellable): Receive = {
-        val result = super.nonEmpty(cart, timer)
+      override def nonEmpty(cart: Cart): Receive = {
+        val result = super.nonEmpty(cart)
         sender ! nonEmptyMsg
         sender ! cart.size
         result

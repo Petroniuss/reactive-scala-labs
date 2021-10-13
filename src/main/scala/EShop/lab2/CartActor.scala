@@ -1,6 +1,6 @@
 package EShop.lab2
 
-import akka.actor.{Actor, ActorRef, Cancellable, Props}
+import akka.actor.{Actor, ActorRef, Cancellable, Props, Timers}
 import akka.event.{Logging, LoggingReceive}
 
 import scala.concurrent.duration._
@@ -19,24 +19,75 @@ object CartActor {
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef) extends Event
 
-  def props = Props(new CartActor())
+  // imho cart actor should create checkout actor
+  case class ItemAdded(item: Any)   extends Event
+  case class ItemRemoved(item: Any) extends Event
+
+  def props: Props = Props(new CartActor())
+
+  case object ExpireCartTimerKey
 }
 
-class CartActor extends Actor {
-
+// this actor should create checkout actor
+class CartActor extends Actor with Timers {
   import CartActor._
 
-  private val log       = Logging(context.system, this)
-  val cartTimerDuration = 5 seconds
+  private val log                       = Logging(context.system, this)
+  val cartTimerDuration: FiniteDuration = 5.seconds
 
-  private def scheduleTimer: Cancellable = ???
+  // guarantees to reschedule timer or create a new one,
+  // events received from previous one will not be processed.
+  private def scheduleExpireCart(): Unit =
+    timers.startSingleTimer(ExpireCartTimerKey, ExpireCart, cartTimerDuration)
 
-  def receive: Receive = ???
+  private def cancelExpireCartTimer(): Unit =
+    timers.cancel(ExpireCartTimerKey)
 
-  def empty: Receive = ???
+  def receive: Receive = empty
 
-  def nonEmpty(cart: Cart, timer: Cancellable): Receive = ???
+  def empty: Receive = {
+    case AddItem(item) =>
+      scheduleExpireCart()
+      context become nonEmpty(Cart.empty.addItem(item))
+    case other =>
+      log.warning(s"Empty CartActor received $other")
+  }
 
-  def inCheckout(cart: Cart): Receive = ???
+  def nonEmpty(cart: Cart): Receive = {
+    case AddItem(item) =>
+      scheduleExpireCart()
+      context become nonEmpty(cart.addItem(item))
 
+    case RemoveItem(item) =>
+      val newCart = cart.removeItem(item)
+      if (newCart.isEmpty) {
+        cancelExpireCartTimer()
+        context become empty
+      } else {
+        scheduleExpireCart()
+        context become nonEmpty(newCart)
+      }
+
+    case ExpireCart =>
+      context become empty
+
+    case StartCheckout =>
+      cancelExpireCartTimer()
+      context become inCheckout(cart)
+
+    case other =>
+      log.warning(s"CartActor nonEmpty received: $other")
+  }
+
+  def inCheckout(cart: Cart): Receive = {
+    case ConfirmCheckoutCancelled =>
+      scheduleExpireCart()
+      context become nonEmpty(cart)
+
+    case ConfirmCheckoutClosed =>
+      context become empty
+
+    case other =>
+      log.warning(s"CartActor nonEmpty received: $other")
+  }
 }

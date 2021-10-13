@@ -171,26 +171,26 @@ object CheckoutTest {
   def checkoutActorWithResponseOnStateChange(system: ActorSystem) =
     system.actorOf(Props(new Checkout {
 
-      override def receive() = {
+      override def receive = {
         val result = super.receive
         sender ! emptyMsg
         result
       }
 
-      override def selectingDelivery(timer: Cancellable): Receive = {
-        val result = super.selectingDelivery(timer)
+      override def selectingDelivery: Receive = {
+        val result = super.selectingDelivery
         sender ! selectingDeliveryMsg
         result
       }
 
-      override def selectingPaymentMethod(timer: Cancellable): Receive = {
-        val result = super.selectingPaymentMethod(timer)
+      override def selectingPaymentMethod: Receive = {
+        val result = super.selectingPaymentMethod
         sender ! selectingPaymentMethodMsg
         result
       }
 
-      override def processingPayment(timer: Cancellable): Receive = {
-        val result = super.processingPayment(timer)
+      override def processingPayment: Receive = {
+        val result = super.processingPayment
         sender ! processingPaymentMsg
         result
       }
