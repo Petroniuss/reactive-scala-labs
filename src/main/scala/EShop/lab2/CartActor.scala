@@ -1,5 +1,6 @@
 package EShop.lab2
 
+import akka.actor.typed.Behavior
 import akka.actor.{Actor, ActorRef, Cancellable, Props, Timers}
 import akka.event.{Logging, LoggingReceive}
 
@@ -45,15 +46,15 @@ class CartActor extends Actor with Timers {
 
   def receive: Receive = empty
 
-  def empty: Receive = {
+  def empty: Receive = LoggingReceive {
     case AddItem(item) =>
       scheduleExpireCart()
       context become nonEmpty(Cart.empty.addItem(item))
     case other =>
-      log.warning(s"Empty CartActor received $other")
+      log.warning(s"CartActor[Empty] received $other")
   }
 
-  def nonEmpty(cart: Cart): Receive = {
+  def nonEmpty(cart: Cart): Receive = LoggingReceive {
     case AddItem(item) =>
       scheduleExpireCart()
       context become nonEmpty(cart.addItem(item))
@@ -73,13 +74,14 @@ class CartActor extends Actor with Timers {
 
     case StartCheckout =>
       cancelExpireCartTimer()
+      context.actorOf(Checkout.props(self))
       context become inCheckout(cart)
 
     case other =>
-      log.warning(s"CartActor nonEmpty received: $other")
+      log.warning(s"CartActor[NonEmpty] received: $other")
   }
 
-  def inCheckout(cart: Cart): Receive = {
+  def inCheckout(cart: Cart): Receive = LoggingReceive {
     case ConfirmCheckoutCancelled =>
       scheduleExpireCart()
       context become nonEmpty(cart)
@@ -88,6 +90,6 @@ class CartActor extends Actor with Timers {
       context become empty
 
     case other =>
-      log.warning(s"CartActor nonEmpty received: $other")
+      log.warning(s"CartActor[inCheckout] nonEmpty received: $other")
   }
 }

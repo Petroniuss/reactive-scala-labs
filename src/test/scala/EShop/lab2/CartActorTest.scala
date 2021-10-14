@@ -52,7 +52,6 @@ class CartActorTest
     expectMsg(0)
   }
 
-  // this one fails
   it should "contain one item after adding new item and removing not existing one" in {
     val cart = cartActorWithCartSizeResponseOnStateChange(system)
 
@@ -145,7 +144,7 @@ object CartActorTest {
     system.actorOf(Props(new CartActor {
       override val cartTimerDuration: FiniteDuration = 1.seconds
 
-      override def empty() = {
+      override def empty: Receive = {
         val result = super.empty
         sender ! emptyMsg
         sender ! 0

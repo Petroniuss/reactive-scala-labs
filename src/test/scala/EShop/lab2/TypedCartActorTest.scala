@@ -59,7 +59,8 @@ class TypedCartActorTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike 
 
     cart ! RemoveItem("Makbet")
 
-    probe.expectNoMessage()
+    probe.expectMessage(nonEmptyMsg)
+    probe.expectMessage(1)
   }
 
   it should "change state to inCheckout from nonEmpty" in {
@@ -193,8 +194,8 @@ object TypedCartActorTest {
     testKit: ActorTestKit,
     probe: ActorRef[Any]
   ): ActorRef[TypedCartActor.Command] =
-    testKit.spawn {
-      val cartActor = new TypedCartActor {
+    testKit.spawn { Behaviors.withTimers[TypedCartActor.Command] { timers =>
+      val cartActor = new TypedCartActor(timers) {
         override val cartTimerDuration: FiniteDuration = 1.seconds
 
         override def empty: Behavior[TypedCartActor.Command] =
@@ -204,11 +205,11 @@ object TypedCartActorTest {
             super.empty
           })
 
-        override def nonEmpty(cart: Cart, timer: Cancellable): Behavior[TypedCartActor.Command] =
+        override def nonEmpty(cart: Cart): Behavior[TypedCartActor.Command] =
           Behaviors.setup(_ => {
             probe ! nonEmptyMsg
             probe ! cart.size
-            super.nonEmpty(cart, timer)
+            super.nonEmpty(cart)
           })
 
         override def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] =
@@ -220,6 +221,5 @@ object TypedCartActorTest {
 
       }
       cartActor.start
-    }
-
+    }}
 }

@@ -25,14 +25,16 @@ object Checkout {
   case object ConfirmPaymentReceived              extends Command
 
   sealed trait Event
-  case object CheckOutClosed                   extends Event
+  case object CheckoutClosed                   extends Event
   case class PaymentStarted(payment: ActorRef) extends Event
 
   case object CheckoutTimerKey
   case object PaymentTimerKey
+
+  def props(cartActor: ActorRef): Props = Props(new Checkout(cartActor))
 }
 
-class Checkout extends Actor with Timers {
+class Checkout(cartActor: ActorRef) extends Actor with Timers {
 
   private val scheduler = context.system.scheduler
   private val log       = Logging(context.system, this)
@@ -73,27 +75,39 @@ class Checkout extends Actor with Timers {
       cancelCheckoutTimer()
       context become processingPayment
     case ExpireCheckout =>
-      context become cancelled
+      cancel()
     case CancelCheckout =>
-      context become cancelled
+      cancel()
   }
 
   def processingPayment: Receive = LoggingReceive {
     case ConfirmPaymentReceived =>
       cancelPaymentTimer()
-      context become closed
+      close()
     case ExpirePayment =>
-      context become cancelled
+      cancel()
     case CancelCheckout =>
-      context become cancelled
+      cancel()
   }
 
   def cancelled: Receive = LoggingReceive {
-    case _ => log.info("Cancelled")
+    case _ =>
+      log.info("Checkout cancelled")
   }
 
   def closed: Receive = LoggingReceive {
-    case _ => log.info("Closed")
+    case _ =>
+      log.info("Checkout closed")
+  }
+
+  def cancel(): Unit = {
+    cartActor ! CartActor.ConfirmCheckoutClosed
+    context become cancelled
+  }
+
+  def close(): Unit = {
+    cartActor ! CartActor.ConfirmCheckoutClosed
+    context become closed
   }
 
 }
