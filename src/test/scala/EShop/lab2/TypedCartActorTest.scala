@@ -194,32 +194,34 @@ object TypedCartActorTest {
     testKit: ActorTestKit,
     probe: ActorRef[Any]
   ): ActorRef[TypedCartActor.Command] =
-    testKit.spawn { Behaviors.withTimers[TypedCartActor.Command] { timers =>
-      val cartActor = new TypedCartActor(timers) {
-        override val cartTimerDuration: FiniteDuration = 1.seconds
+    testKit.spawn {
+      Behaviors.withTimers[TypedCartActor.Command] { timers =>
+        val cartActor = new TypedCartActor(timers) {
+          override val cartTimerDuration: FiniteDuration = 1.seconds
 
-        override def empty: Behavior[TypedCartActor.Command] =
-          Behaviors.setup(_ => {
-            probe ! emptyMsg
-            probe ! 0
-            super.empty
-          })
+          override def empty: Behavior[TypedCartActor.Command] =
+            Behaviors.setup(_ => {
+              probe ! emptyMsg
+              probe ! 0
+              super.empty
+            })
 
-        override def nonEmpty(cart: Cart): Behavior[TypedCartActor.Command] =
-          Behaviors.setup(_ => {
-            probe ! nonEmptyMsg
-            probe ! cart.size
-            super.nonEmpty(cart)
-          })
+          override def nonEmpty(cart: Cart): Behavior[TypedCartActor.Command] =
+            Behaviors.setup(_ => {
+              probe ! nonEmptyMsg
+              probe ! cart.size
+              super.nonEmpty(cart)
+            })
 
-        override def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] =
-          Behaviors.setup(_ => {
-            probe ! inCheckoutMsg
-            probe ! cart.size
-            super.inCheckout(cart)
-          })
+          override def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] =
+            Behaviors.setup(_ => {
+              probe ! inCheckoutMsg
+              probe ! cart.size
+              super.inCheckout(cart)
+            })
 
+        }
+        cartActor.start
       }
-      cartActor.start
-    }}
+    }
 }

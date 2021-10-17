@@ -12,9 +12,6 @@ object EShopApp extends App {
   mainActor ! CartActor.AddItem("Foo")
   mainActor ! CartActor.AddItem("Bar")
   mainActor ! CartActor.StartCheckout
-  mainActor ! CartActor.ConfirmCheckoutClosed
 
   Await.result(system.whenTerminated, Duration.Inf)
-  // todo: implement app and add a couple of events happening between cart and checkout
-  // todo: implement typed actors.
 }

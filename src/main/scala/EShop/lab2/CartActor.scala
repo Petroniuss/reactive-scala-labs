@@ -1,7 +1,6 @@
 package EShop.lab2
 
-import akka.actor.typed.Behavior
-import akka.actor.{Actor, ActorRef, Cancellable, Props, Timers}
+import akka.actor.{Actor, ActorRef, Props, Timers}
 import akka.event.{Logging, LoggingReceive}
 
 import scala.concurrent.duration._
@@ -74,7 +73,8 @@ class CartActor extends Actor with Timers {
 
     case StartCheckout =>
       cancelExpireCartTimer()
-      context.actorOf(Checkout.props(self))
+      val checkoutActor = context.actorOf(Checkout.props(self))
+      checkoutActor ! Checkout.StartCheckout
       context become inCheckout(cart)
 
     case other =>

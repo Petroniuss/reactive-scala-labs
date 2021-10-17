@@ -1,9 +1,7 @@
 package EShop.lab2
 
-import EShop.lab2
 import EShop.lab2.TypedCartActor.Command
-import akka.actor.{Actor, Cancellable, Timers}
-import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
+import akka.actor.typed.scaladsl.{Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
 import org.slf4j.LoggerFactory
 
@@ -25,16 +23,15 @@ object TypedCartActor {
 
   case object ExpireCartTimerKey
 
-  def apply(): Behavior[Command] = {
+  def apply(): Behavior[Command] =
     Behaviors.withTimers(timers => new TypedCartActor(timers).start)
-  }
 }
 
 class TypedCartActor(timers: TimerScheduler[Command]) {
   import TypedCartActor._
 
   val cartTimerDuration: FiniteDuration = 5 seconds
-  private val log = LoggerFactory.getLogger(getClass)
+  private val log                       = LoggerFactory.getLogger(getClass)
 
   // guarantees to reschedule timer or create a new one,
   // events received from previous one will not be processed.
@@ -46,46 +43,59 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
 
   def start: Behavior[Command] = empty
 
-  def empty: Behavior[Command] = Behaviors.receive((context, msg) => msg match {
-    case AddItem(item) =>
-      scheduleExpireCart()
-      nonEmpty(Cart.empty.addItem(item))
-    case _msg =>
-      log.warn("Received unexpected message", msg)
-      Behaviors.same
-  })
-
-  def nonEmpty(cart: Cart): Behavior[Command] = Behaviors.receive((context, msg) => msg match {
-    case AddItem(item) =>
-      scheduleExpireCart()
-      nonEmpty(cart.addItem(item))
-    case ExpireCart =>
-      empty
-    case RemoveItem(item) =>
-      val newCart = cart.removeItem(item)
-      if (newCart.isEmpty) {
-        cancelExpireCartTimer()
-        empty
-      } else {
-        scheduleExpireCart()
-        nonEmpty(newCart)
+  def empty: Behavior[Command] =
+    Behaviors.receive(
+      (context, msg) =>
+        msg match {
+          case AddItem(item) =>
+            scheduleExpireCart()
+            nonEmpty(Cart.empty.addItem(item))
+          case _msg =>
+            log.warn("Received unexpected message", msg)
+            Behaviors.same
       }
-    case StartCheckout =>
-      context.spawnAnonymous(TypedCheckout(context.self))
-      inCheckout(cart)
-    case _msg =>
-      log.warn("Received unexpected message", msg)
-      Behaviors.same
-  })
+    )
 
-  def inCheckout(cart: Cart): Behavior[Command] = Behaviors.receive((context, msg) => msg match {
-    case ConfirmCheckoutCancelled =>
-      nonEmpty(cart)
-    case ConfirmCheckoutClosed =>
-      empty
-    case _msg =>
-      log.warn("Received unexpected message", msg)
-      Behaviors.same
-  })
+  def nonEmpty(cart: Cart): Behavior[Command] =
+    Behaviors.receive(
+      (context, msg) =>
+        msg match {
+          case AddItem(item) =>
+            scheduleExpireCart()
+            nonEmpty(cart.addItem(item))
+          case ExpireCart =>
+            empty
+          case RemoveItem(item) =>
+            val newCart = cart.removeItem(item)
+            if (newCart.isEmpty) {
+              cancelExpireCartTimer()
+              empty
+            } else {
+              scheduleExpireCart()
+              nonEmpty(newCart)
+            }
+          case StartCheckout =>
+            val checkoutActor = context.spawnAnonymous(TypedCheckout(context.self))
+            checkoutActor ! TypedCheckout.StartCheckout
+            inCheckout(cart)
+          case _msg =>
+            log.warn("Received unexpected message", msg)
+            Behaviors.same
+      }
+    )
+
+  def inCheckout(cart: Cart): Behavior[Command] =
+    Behaviors.receive(
+      (context, msg) =>
+        msg match {
+          case ConfirmCheckoutCancelled =>
+            nonEmpty(cart)
+          case ConfirmCheckoutClosed =>
+            empty
+          case _msg =>
+            log.warn("Received unexpected message", msg)
+            Behaviors.same
+      }
+    )
 
 }

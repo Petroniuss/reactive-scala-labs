@@ -11,7 +11,3 @@ case class Cart(items: List[Any]) {
 object Cart {
   def empty: Cart = Cart(Nil)
 }
-
-trait CartCheckoutState
-case object InCheckout    extends CartCheckoutState
-case object NotInCheckout extends CartCheckoutState

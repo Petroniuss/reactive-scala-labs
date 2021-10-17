@@ -64,9 +64,9 @@ class Checkout(cartActor: ActorRef) extends Actor with Timers {
     case SelectDeliveryMethod(_method) =>
       context become selectingPaymentMethod
     case ExpireCheckout =>
-      context become cancelled
+      cancel()
     case CancelCheckout =>
-      context become cancelled
+      cancel()
   }
 
   def selectingPaymentMethod: Receive = LoggingReceive {
@@ -101,7 +101,7 @@ class Checkout(cartActor: ActorRef) extends Actor with Timers {
   }
 
   def cancel(): Unit = {
-    cartActor ! CartActor.ConfirmCheckoutClosed
+    cartActor ! CartActor.ConfirmCheckoutCancelled
     context become cancelled
   }
 
