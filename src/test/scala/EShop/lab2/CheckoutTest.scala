@@ -1,7 +1,7 @@
 package EShop.lab2
 
 import EShop.lab2.Checkout.{CancelCheckout, ConfirmPaymentReceived, SelectDeliveryMethod, SelectPayment, StartCheckout}
-import akka.actor.{ActorSystem, Cancellable, Props}
+import akka.actor.{ActorRef, ActorSystem, Cancellable, Props}
 import akka.testkit.{ImplicitSender, TestKit}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -38,7 +38,7 @@ class CheckoutTest
   }
 
   it should "be in cancelled state after expire checkout timeout in selectingDelivery state" in {
-    val checkoutActor = system.actorOf(Props(new Checkout {
+    val checkoutActor = system.actorOf(Props(new Checkout(system.actorOf(Props[CartActor]())) {
       override val checkoutTimerDuration: FiniteDuration = 1.seconds
 
       override def cancelled: Receive = {
@@ -73,7 +73,7 @@ class CheckoutTest
   }
 
   it should "be in cancelled state after expire checkout timeout in selectingPayment state" in {
-    val checkoutActor = system.actorOf(Props(new Checkout {
+    val checkoutActor = system.actorOf(Props(new Checkout(system.actorOf(Props[CartActor]())) {
       override val checkoutTimerDuration: FiniteDuration = 1.seconds
 
       override def cancelled: Receive = {
@@ -113,7 +113,7 @@ class CheckoutTest
   }
 
   it should "be in cancelled state after expire checkout timeout in processingPayment state" in {
-    val checkoutActor = system.actorOf(Props(new Checkout {
+    val checkoutActor = system.actorOf(Props(new Checkout(system.actorOf(Props[CartActor]())) {
       override val paymentTimerDuration: FiniteDuration = 1.seconds
 
       override def cancelled: Receive = {
@@ -168,29 +168,28 @@ object CheckoutTest {
   val cancelledMsg              = "cancelled"
   val closedMsg                 = "closed"
 
-  def checkoutActorWithResponseOnStateChange(system: ActorSystem) =
-    system.actorOf(Props(new Checkout {
-
-      override def receive() = {
+  def checkoutActorWithResponseOnStateChange(system: ActorSystem): ActorRef =
+    system.actorOf(Props(new Checkout(system.actorOf(Props[CartActor]())) {
+      override def receive: Receive = {
         val result = super.receive
         sender ! emptyMsg
         result
       }
 
-      override def selectingDelivery(timer: Cancellable): Receive = {
-        val result = super.selectingDelivery(timer)
+      override def selectingDelivery: Receive = {
+        val result = super.selectingDelivery
         sender ! selectingDeliveryMsg
         result
       }
 
-      override def selectingPaymentMethod(timer: Cancellable): Receive = {
-        val result = super.selectingPaymentMethod(timer)
+      override def selectingPaymentMethod: Receive = {
+        val result = super.selectingPaymentMethod
         sender ! selectingPaymentMethodMsg
         result
       }
 
-      override def processingPayment(timer: Cancellable): Receive = {
-        val result = super.processingPayment(timer)
+      override def processingPayment: Receive = {
+        val result = super.processingPayment
         sender ! processingPaymentMsg
         result
       }

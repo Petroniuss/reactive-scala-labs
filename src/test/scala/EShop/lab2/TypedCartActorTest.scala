@@ -59,7 +59,8 @@ class TypedCartActorTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike 
 
     cart ! RemoveItem("Makbet")
 
-    probe.expectNoMessage()
+    probe.expectMessage(nonEmptyMsg)
+    probe.expectMessage(1)
   }
 
   it should "change state to inCheckout from nonEmpty" in {
@@ -194,32 +195,33 @@ object TypedCartActorTest {
     probe: ActorRef[Any]
   ): ActorRef[TypedCartActor.Command] =
     testKit.spawn {
-      val cartActor = new TypedCartActor {
-        override val cartTimerDuration: FiniteDuration = 1.seconds
+      Behaviors.withTimers[TypedCartActor.Command] { timers =>
+        val cartActor = new TypedCartActor(timers) {
+          override val cartTimerDuration: FiniteDuration = 1.seconds
 
-        override def empty: Behavior[TypedCartActor.Command] =
-          Behaviors.setup(_ => {
-            probe ! emptyMsg
-            probe ! 0
-            super.empty
-          })
+          override def empty: Behavior[TypedCartActor.Command] =
+            Behaviors.setup(_ => {
+              probe ! emptyMsg
+              probe ! 0
+              super.empty
+            })
 
-        override def nonEmpty(cart: Cart, timer: Cancellable): Behavior[TypedCartActor.Command] =
-          Behaviors.setup(_ => {
-            probe ! nonEmptyMsg
-            probe ! cart.size
-            super.nonEmpty(cart, timer)
-          })
+          override def nonEmpty(cart: Cart): Behavior[TypedCartActor.Command] =
+            Behaviors.setup(_ => {
+              probe ! nonEmptyMsg
+              probe ! cart.size
+              super.nonEmpty(cart)
+            })
 
-        override def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] =
-          Behaviors.setup(_ => {
-            probe ! inCheckoutMsg
-            probe ! cart.size
-            super.inCheckout(cart)
-          })
+          override def inCheckout(cart: Cart): Behavior[TypedCartActor.Command] =
+            Behaviors.setup(_ => {
+              probe ! inCheckoutMsg
+              probe ! cart.size
+              super.inCheckout(cart)
+            })
 
+        }
+        cartActor.start
       }
-      cartActor.start
     }
-
 }
