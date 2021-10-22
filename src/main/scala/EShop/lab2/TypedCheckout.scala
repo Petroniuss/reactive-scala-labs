@@ -86,15 +86,9 @@ class TypedCheckout(cart: ActorRef[TypedCartActor.Command], timers: TimerSchedul
       Behaviors.same
   }
 
-  def cancelled: Behavior[TypedCheckout.Command] = Behaviors.receiveMessage { _ =>
-    log.warn("Cancelled")
-    Behaviors.same
-  }
+  def cancelled: Behavior[TypedCheckout.Command] = Behaviors.stopped
 
-  def closed: Behavior[TypedCheckout.Command] = Behaviors.receiveMessage { _ =>
-    log.warn("Closed")
-    Behaviors.same
-  }
+  def closed: Behavior[TypedCheckout.Command] = Behaviors.stopped
 
   def cancel(): Behavior[TypedCheckout.Command] = {
     cart ! TypedCartActor.ConfirmCheckoutCancelled

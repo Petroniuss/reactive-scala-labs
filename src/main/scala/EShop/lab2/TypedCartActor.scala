@@ -33,8 +33,6 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
   val cartTimerDuration: FiniteDuration = 5 seconds
   private val log                       = LoggerFactory.getLogger(getClass)
 
-  // guarantees to reschedule timer or create a new one,
-  // events received from previous one will not be processed.
   private def scheduleExpireCart(): Unit =
     timers.startSingleTimer(ExpireCartTimerKey, ExpireCart, cartTimerDuration)
 
@@ -51,7 +49,7 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
             scheduleExpireCart()
             nonEmpty(Cart.empty.addItem(item))
           case _msg =>
-            log.warn("Received unexpected message", msg)
+            log.warn("[Empty] Received unexpected message", _msg)
             Behaviors.same
       }
     )
@@ -79,7 +77,7 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
             checkoutActor ! TypedCheckout.StartCheckout
             inCheckout(cart)
           case _msg =>
-            log.warn("Received unexpected message", msg)
+            log.warn("[NonEmpty] Received unexpected message", _msg)
             Behaviors.same
       }
     )
@@ -93,7 +91,7 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
           case ConfirmCheckoutClosed =>
             empty
           case _msg =>
-            log.warn("Received unexpected message", msg)
+            log.warn("[InCheckout] Received unexpected message", _msg)
             Behaviors.same
       }
     )
