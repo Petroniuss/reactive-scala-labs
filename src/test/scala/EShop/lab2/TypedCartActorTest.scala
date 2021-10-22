@@ -1,5 +1,6 @@
 package EShop.lab2
 
+import EShop.lab3.OrderManager
 import akka.actor.testkit.typed.scaladsl.{ActorTestKit, ScalaTestWithActorTestKit}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
@@ -195,7 +196,8 @@ object TypedCartActorTest {
   ): ActorRef[TypedCartActor.Command] =
     testKit.spawn {
       Behaviors.withTimers[TypedCartActor.Command] { timers =>
-        val cartActor = new TypedCartActor(timers) {
+        val orderManager = testKit.spawn(OrderManager())
+        val cartActor = new TypedCartActor(timers, orderManager) {
           override val cartTimerDuration: FiniteDuration = 1.seconds
 
           override def empty: Behavior[TypedCartActor.Command] =

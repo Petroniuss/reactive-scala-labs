@@ -1,5 +1,6 @@
 package EShop.lab2
 
+import EShop.lab3.OrderManager
 import akka.actor.testkit.typed.scaladsl.{ActorTestKit, ScalaTestWithActorTestKit}
 import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
@@ -40,8 +41,8 @@ class TypedCheckoutTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike w
     val probe = testKit.createTestProbe[String]
     val checkoutActor = testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val ref = testKit.spawn(TypedCartActor())
-        val checkout = new TypedCheckout(ref, timers) {
+        val (orderManager, cart) = env(testKit)
+        val checkout = new TypedCheckout(cart, orderManager, timers) {
           override val checkoutTimerDuration: FiniteDuration = 1.seconds
 
           override def cancelled: Behavior[TypedCheckout.Command] =
@@ -88,7 +89,8 @@ class TypedCheckoutTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike w
     val probe = testKit.createTestProbe[String]
     val checkoutActor = testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val checkout = new TypedCheckout(testKit.spawn(TypedCartActor()), timers) {
+        val (orderManager, cart) = env(testKit)
+        val checkout = new TypedCheckout(cart, orderManager, timers) {
           override val checkoutTimerDuration: FiniteDuration = 1.seconds
 
           override def cancelled: Behavior[TypedCheckout.Command] =
@@ -140,7 +142,8 @@ class TypedCheckoutTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike w
     val probe = testKit.createTestProbe[String]
     val checkoutActor = testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val checkout = new TypedCheckout(testKit.spawn(TypedCartActor()), timers) {
+        val (orderManager, cart) = env(testKit)
+        val checkout = new TypedCheckout(cart, orderManager, timers) {
           override val paymentTimerDuration: FiniteDuration = 1.seconds
 
           override def cancelled: Behavior[TypedCheckout.Command] =
@@ -204,13 +207,21 @@ object TypedCheckoutTest {
   val cancelledMsg              = "cancelled"
   val closedMsg                 = "closed"
 
+  def env(testKit: ActorTestKit): (ActorRef[OrderManager.Command], ActorRef[TypedCartActor.Command]) = {
+    val orderManager = testKit.spawn(OrderManager())
+    val cart = testKit.spawn(TypedCartActor(orderManager))
+
+    (orderManager, cart)
+  }
+
   def checkoutActorWithResponseOnStateChange(
     testKit: ActorTestKit,
     probe: ActorRef[String]
   ): ActorRef[TypedCheckout.Command] =
     testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val checkout = new TypedCheckout(testKit.spawn(TypedCartActor()), timers) {
+        val (orderManager, cart) = env(testKit)
+        val checkout = new TypedCheckout(cart, orderManager, timers) {
           override def start: Behavior[TypedCheckout.Command] =
             Behaviors.setup(_ => {
               probe ! emptyMsg

@@ -1,8 +1,11 @@
 package EShop.lab3
 
 import EShop.lab2.{TypedCartActor, TypedCheckout}
-import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.scaladsl.{Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
+import org.slf4j.{Logger, LoggerFactory}
+
+import java.util.UUID
 
 object OrderManager {
 
@@ -18,31 +21,79 @@ object OrderManager {
 
   sealed trait Ack
   case object Done extends Ack //trivial ACK
+
+  def apply(): Behavior[OrderManager.Command] = Behaviors.withStash(100)(stash => {
+    new OrderManager(stash).start
+  })
+
+  def actorName(): String = s"order-manager-${UUID.randomUUID.toString}"
+
+  val log: Logger = LoggerFactory.getLogger(OrderManager.getClass)
 }
 
-class OrderManager {
-
+class OrderManager(stash: StashBuffer[OrderManager.Command]) {
   import OrderManager._
 
-  def start: Behavior[OrderManager.Command] = ???
+  def start: Behavior[OrderManager.Command] = Behaviors.setup(context => {
+    val cartActor = context.spawn(TypedCartActor(context.self), TypedCartActor.actorName())
+    open(cartActor)
+  })
 
-  def uninitialized: Behavior[OrderManager.Command] = ???
+  def open(cartActor: ActorRef[TypedCartActor.Command]): Behavior[OrderManager.Command] =
+    Behaviors.receive((_context, msg) => {
+      msg match {
+        case AddItem(id, sender) =>
+          cartActor ! TypedCartActor.AddItem(id)
+          Behaviors.same
+        case RemoveItem(id, sender) =>
+          cartActor ! TypedCartActor.RemoveItem(id)
+          Behaviors.same
+        case Buy(sender) =>
+          cartActor ! TypedCartActor.StartCheckout
+          Behaviors.same
+        case ConfirmCheckoutStarted(checkoutRef) =>
+          log.info("Checkout started")
+          stash.unstashAll(inCheckout(checkoutRef))
+        case _msg =>
+          stash.stash(_msg)
+          log.warn(s"[open] Received unexpected message ${_msg}")
+          Behaviors.same
+      }
+    })
 
-  def open(cartActor: ActorRef[TypedCartActor.Command]): Behavior[OrderManager.Command] = ???
+  def inCheckout(checkoutActorRef: ActorRef[TypedCheckout.Command]): Behavior[OrderManager.Command] =
+    Behaviors.receive((_context, msg) => {
+      msg match {
+        case SelectDeliveryAndPaymentMethod(delivery, payment, sender) =>
+          checkoutActorRef ! TypedCheckout.SelectDeliveryMethod(delivery)
+          checkoutActorRef ! TypedCheckout.SelectPayment(payment)
+          Behaviors.same
+        case ConfirmPaymentStarted(paymentRef) =>
+          stash.unstashAll(inPayment(paymentRef))
+        case _msg =>
+          log.warn(s"[inCheckout] Received unexpected message ${_msg}")
+          stash.stash(_msg)
+          Behaviors.same
+      }
+    })
 
-  def inCheckout(
-    cartActorRef: ActorRef[TypedCartActor.Command],
-    senderRef: ActorRef[Ack]
-  ): Behavior[OrderManager.Command] = ???
+  def inPayment(paymentActorRef: ActorRef[Payment.Command]): Behavior[OrderManager.Command] =
+    Behaviors.receive((context, msg) => {
+      msg match {
+        case Pay(sender) =>
+          paymentActorRef ! Payment.DoPayment
+          Behaviors.same
+        case ConfirmPaymentReceived =>
+          finished
+        case _msg =>
+          stash.stash(_msg)
+          log.warn(s"[inPayment] Received unexpected message ${_msg}")
+          Behaviors.same
+      }
+    })
 
-  def inCheckout(checkoutActorRef: ActorRef[TypedCheckout.Command]): Behavior[OrderManager.Command] = ???
-
-  def inPayment(senderRef: ActorRef[Ack]): Behavior[OrderManager.Command] = ???
-
-  def inPayment(
-    paymentActorRef: ActorRef[Payment.Command],
-    senderRef: ActorRef[Ack]
-  ): Behavior[OrderManager.Command] = ???
-
-  def finished: Behavior[OrderManager.Command] = ???
+  def finished: Behavior[OrderManager.Command] = {
+    log.info("Finished ordering..")
+    start
+  }
 }

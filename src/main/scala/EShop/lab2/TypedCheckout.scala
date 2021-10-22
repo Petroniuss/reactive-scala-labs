@@ -1,6 +1,7 @@
 package EShop.lab2
 
 import EShop.lab2.TypedCheckout.Command
+import EShop.lab3.{OrderManager, Payment}
 import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
@@ -9,6 +10,7 @@ import org.slf4j.LoggerFactory
 import scala.language.postfixOps
 import scala.concurrent.duration._
 
+// todo cleanup?
 object TypedCheckout {
 
   sealed trait Data
@@ -32,20 +34,24 @@ object TypedCheckout {
   case object ExpireCheckoutTimerKey
   case object ExpirePaymentTimerKey
 
-  def apply(cart: ActorRef[TypedCartActor.Command]): Behavior[TypedCheckout.Command] =
-    Behaviors.withTimers(timers => new TypedCheckout(cart, timers).start)
+  def apply(cart: ActorRef[TypedCartActor.Command],
+            orderManager: ActorRef[OrderManager.Command]): Behavior[TypedCheckout.Command] =
+    Behaviors.withTimers(timers => new TypedCheckout(cart, orderManager, timers).start)
 }
 
-class TypedCheckout(cart: ActorRef[TypedCartActor.Command], timers: TimerScheduler[Command]) {
+class TypedCheckout(cart: ActorRef[TypedCartActor.Command],
+                    orderManager: ActorRef[OrderManager.Command],
+                    timers: TimerScheduler[Command]) {
   import TypedCheckout._
   private val log = LoggerFactory.getLogger(TypedCheckout.getClass)
 
   val checkoutTimerDuration: FiniteDuration = 1 seconds
   val paymentTimerDuration: FiniteDuration  = 1 seconds
 
-  def start: Behavior[TypedCheckout.Command] = {
-    scheduleExpireCheckout()
-    selectingDelivery()
+  def start: Behavior[TypedCheckout.Command] = Behaviors.receiveMessage {
+    case StartCheckout =>
+      scheduleExpireCheckout()
+      selectingDelivery()
   }
 
   def selectingDelivery(): Behavior[TypedCheckout.Command] = Behaviors.receiveMessage {
@@ -60,19 +66,23 @@ class TypedCheckout(cart: ActorRef[TypedCartActor.Command], timers: TimerSchedul
       Behaviors.same
   }
 
-  def selectingPaymentMethod(): Behavior[TypedCheckout.Command] = Behaviors.receiveMessage {
-    case SelectPayment(payment) =>
-      cancelExpireCheckout()
-      scheduleExpirePayment()
-      processingPayment()
-    case TypedCheckout.CancelCheckout =>
-      cancel()
-    case TypedCheckout.ExpireCheckout =>
-      cancel()
-    case _msg =>
-      log.warn(s"Received unexpected message ${_msg}")
-      Behaviors.same
-  }
+  def selectingPaymentMethod(): Behavior[TypedCheckout.Command] = Behaviors.receive((context, msg) => {
+    msg match {
+      case SelectPayment(payment) =>
+        cancelExpireCheckout()
+        val paymentRef = context.spawn(Payment(payment, orderManager, context.self), Payment.actorName())
+        orderManager ! OrderManager.ConfirmPaymentStarted(paymentRef)
+        scheduleExpirePayment()
+        processingPayment()
+      case TypedCheckout.CancelCheckout =>
+        cancel()
+      case TypedCheckout.ExpireCheckout =>
+        cancel()
+      case _msg =>
+        log.warn(s"Received unexpected message ${_msg}")
+        Behaviors.same
+    }
+  })
 
   def processingPayment(): Behavior[TypedCheckout.Command] = Behaviors.receiveMessage {
     case ConfirmPaymentReceived =>
@@ -96,7 +106,6 @@ class TypedCheckout(cart: ActorRef[TypedCartActor.Command], timers: TimerSchedul
   }
 
   def close(): Behavior[TypedCheckout.Command] = {
-    cancelExpirePayment()
     cart ! TypedCartActor.ConfirmCheckoutClosed
     closed
   }
@@ -109,8 +118,5 @@ class TypedCheckout(cart: ActorRef[TypedCartActor.Command], timers: TimerSchedul
 
   private def scheduleExpirePayment(): Unit =
     timers.startSingleTimer(ExpirePaymentTimerKey, ExpirePayment, paymentTimerDuration)
-
-  private def cancelExpirePayment(): Unit =
-    timers.cancel(ExpirePaymentTimerKey)
 
 }
