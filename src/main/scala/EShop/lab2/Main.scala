@@ -6,7 +6,6 @@ import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorSystem, Behavior}
 import org.slf4j.{Logger, LoggerFactory}
 
-import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.Duration
 

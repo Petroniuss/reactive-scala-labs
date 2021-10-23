@@ -1,18 +1,18 @@
 package EShop.lab2
 
-import EShop.lab3.OrderManager
+import EShop.lab3.Payment
 import akka.actor.testkit.typed.scaladsl.{ActorTestKit, ScalaTestWithActorTestKit}
-import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
-import org.scalatest.flatspec.AnyFlatSpecLike
+import akka.actor.typed.{ActorRef, Behavior}
 import org.scalatest.BeforeAndAfterAll
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 import scala.concurrent.duration._
 
 class TypedCartActorTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike with BeforeAndAfterAll {
 
-  import TypedCartActorTest._
   import TypedCartActor._
+  import TypedCartActorTest._
 
   it should "change state after adding first item to the cart" in {
     val probe = testKit.createTestProbe[Any]()
@@ -196,8 +196,10 @@ object TypedCartActorTest {
   ): ActorRef[TypedCartActor.Command] =
     testKit.spawn {
       Behaviors.withTimers[TypedCartActor.Command] { timers =>
-        val orderManager = testKit.createTestProbe[OrderManager.Command].ref
-        val cartActor = new TypedCartActor(timers, orderManager) {
+        val cartListener = testKit.createTestProbe[TypedCartActor.Event].ref
+        val checkoutListener = testKit.createTestProbe[TypedCheckout.Event].ref
+        val paymentListener = testKit.createTestProbe[Payment.Event].ref
+        val cartActor = new TypedCartActor(timers, cartListener, checkoutListener, paymentListener) {
           override val cartTimerDuration: FiniteDuration = 1.seconds
 
           override def empty: Behavior[TypedCartActor.Command] =

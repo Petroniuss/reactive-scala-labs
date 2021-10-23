@@ -1,6 +1,7 @@
 package EShop.lab3
 
 import EShop.lab2.{TypedCartActor, TypedCheckout}
+import EShop.lab3.Payment.{DoPayment, PaymentReceived}
 import akka.actor.typed.scaladsl.{Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
 import org.slf4j.{Logger, LoggerFactory}
@@ -16,6 +17,7 @@ object OrderManager {
   case class ConfirmCheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command])                     extends Command
   case class ConfirmPaymentStarted(paymentRef: ActorRef[Payment.Command])                             extends Command
   case object ConfirmPaymentReceived                                                                  extends Command
+  case object ConfirmCheckoutClosed                                                                   extends Command
 
   sealed trait Ack
   case object Done extends Ack //trivial ACK
@@ -31,7 +33,21 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
   import OrderManager._
 
   def start: Behavior[OrderManager.Command] = Behaviors.setup(context => {
-    val cartActor = context.spawnAnonymous(TypedCartActor(context.self))
+    val paymentListener = context.messageAdapter[Payment.Event] {
+      case PaymentReceived => ConfirmPaymentReceived
+    }
+    val checkoutListener = context.messageAdapter[TypedCheckout.Event] {
+      case TypedCheckout.CheckOutClosed => ConfirmCheckoutClosed
+      case TypedCheckout.PaymentStarted(payment) => ConfirmPaymentStarted(payment)
+    }
+
+    val cartListener = context.messageAdapter[TypedCartActor.Event] {
+      case TypedCartActor.CheckoutStarted(checkoutRef) => ConfirmCheckoutStarted(checkoutRef)
+    }
+
+    val cartBehavior = TypedCartActor(cartListener, checkoutListener, paymentListener)
+    val cartActor = context.spawnAnonymous(cartBehavior)
+
     open(cartActor)
   })
 
@@ -70,6 +86,9 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
           Behaviors.same
         case ConfirmPaymentStarted(paymentRef) =>
           stash.unstashAll(inPayment(paymentRef))
+        case ConfirmCheckoutClosed =>
+          log.info("Checkout closed")
+          start
         case _msg =>
           log.warn(s"[inCheckout] Received unexpected message ${_msg}")
           stash.stash(_msg)
@@ -81,7 +100,7 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
     Behaviors.receive((context, msg) => {
       msg match {
         case Pay(sender) =>
-          paymentActorRef ! Payment.DoPayment
+          paymentActorRef ! DoPayment
           sender ! Done
           Behaviors.same
         case ConfirmPaymentReceived =>

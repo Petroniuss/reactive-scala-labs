@@ -1,11 +1,11 @@
 package EShop.lab2
 
-import EShop.lab3.OrderManager
+import EShop.lab3.Payment
 import akka.actor.testkit.typed.scaladsl.{ActorTestKit, ScalaTestWithActorTestKit}
-import akka.actor.typed.{ActorRef, Behavior}
 import akka.actor.typed.scaladsl.Behaviors
-import org.scalatest.flatspec.AnyFlatSpecLike
+import akka.actor.typed.{ActorRef, Behavior}
 import org.scalatest.BeforeAndAfterAll
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 import scala.concurrent.duration.{FiniteDuration, _}
 
@@ -14,8 +14,8 @@ class TypedCheckoutTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike w
   val deliveryMethod = "post"
   val paymentMethod  = "paypal"
 
-  import TypedCheckoutTest._
   import TypedCheckout._
+  import TypedCheckoutTest._
 
   it should "be in selectingDelivery state after checkout start" in {
     val probe         = testKit.createTestProbe[String]
@@ -41,8 +41,8 @@ class TypedCheckoutTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike w
     val probe = testKit.createTestProbe[String]
     val checkoutActor = testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val (orderManager, cart) = env(testKit)
-        val checkout = new TypedCheckout(cart, orderManager, timers) {
+        val (cart, checkoutListener, paymentListener) = env(testKit)
+        val checkout = new TypedCheckout(cart, checkoutListener, paymentListener, timers) {
           override val checkoutTimerDuration: FiniteDuration = 1.seconds
 
           override def cancelled: Behavior[TypedCheckout.Command] =
@@ -89,8 +89,8 @@ class TypedCheckoutTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike w
     val probe = testKit.createTestProbe[String]
     val checkoutActor = testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val (orderManager, cart) = env(testKit)
-        val checkout = new TypedCheckout(cart, orderManager, timers) {
+        val (cart, checkoutListener, paymentListener) = env(testKit)
+        val checkout = new TypedCheckout(cart, checkoutListener, paymentListener, timers) {
           override val checkoutTimerDuration: FiniteDuration = 1.seconds
 
           override def cancelled: Behavior[TypedCheckout.Command] =
@@ -142,8 +142,8 @@ class TypedCheckoutTest extends ScalaTestWithActorTestKit with AnyFlatSpecLike w
     val probe = testKit.createTestProbe[String]
     val checkoutActor = testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val (orderManager, cart) = env(testKit)
-        val checkout = new TypedCheckout(cart, orderManager, timers) {
+        val (cart, checkoutListener, paymentListener) = env(testKit)
+        val checkout = new TypedCheckout(cart, checkoutListener, paymentListener, timers) {
           override val paymentTimerDuration: FiniteDuration = 1.seconds
 
           override def cancelled: Behavior[TypedCheckout.Command] =
@@ -207,11 +207,14 @@ object TypedCheckoutTest {
   val cancelledMsg              = "cancelled"
   val closedMsg                 = "closed"
 
-  def env(testKit: ActorTestKit): (ActorRef[OrderManager.Command], ActorRef[TypedCartActor.Command]) = {
-    val orderManager = testKit.createTestProbe[OrderManager.Command].ref
-    val cart = testKit.spawn(TypedCartActor(orderManager))
+  def env(testKit: ActorTestKit):
+    (ActorRef[TypedCartActor.Command], ActorRef[TypedCheckout.Event], ActorRef[Payment.Event]) = {
+    val cartListener = testKit.createTestProbe[TypedCartActor.Event].ref
+    val checkoutListener = testKit.createTestProbe[TypedCheckout.Event].ref
+    val paymentListener = testKit.createTestProbe[Payment.Event].ref
 
-    (orderManager, cart)
+    val cart = testKit.spawn(TypedCartActor(cartListener, checkoutListener, paymentListener))
+    (cart, checkoutListener, paymentListener)
   }
 
   def checkoutActorWithResponseOnStateChange(
@@ -220,8 +223,8 @@ object TypedCheckoutTest {
   ): ActorRef[TypedCheckout.Command] =
     testKit.spawn {
       Behaviors.withTimers[TypedCheckout.Command](timers => {
-        val (orderManager, cart) = env(testKit)
-        val checkout = new TypedCheckout(cart, orderManager, timers) {
+        val (cart, checkoutListener, paymentListener) = env(testKit)
+        val checkout = new TypedCheckout(cart, checkoutListener, paymentListener, timers) {
           override def start: Behavior[TypedCheckout.Command] =
             Behaviors.setup(_ => {
               probe ! emptyMsg
