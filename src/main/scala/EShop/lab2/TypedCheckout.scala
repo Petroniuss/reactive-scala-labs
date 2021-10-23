@@ -33,18 +33,22 @@ object TypedCheckout {
   case object ExpireCheckoutTimerKey
   case object ExpirePaymentTimerKey
 
-  def apply(cart: ActorRef[TypedCartActor.Command],
-            orderManagerCheckoutListener: ActorRef[TypedCheckout.Event],
-            orderManagerPaymentListener: ActorRef[Payment.Event]
-           ): Behavior[Command] =
-    Behaviors.withTimers(timers =>
-      new TypedCheckout(cart, orderManagerCheckoutListener, orderManagerPaymentListener, timers).start)
+  def apply(
+    cart: ActorRef[TypedCartActor.Command],
+    orderManagerCheckoutListener: ActorRef[TypedCheckout.Event],
+    orderManagerPaymentListener: ActorRef[Payment.Event]
+  ): Behavior[Command] =
+    Behaviors.withTimers(
+      timers => new TypedCheckout(cart, orderManagerCheckoutListener, orderManagerPaymentListener, timers).start
+    )
 }
 
-class TypedCheckout(cart: ActorRef[TypedCartActor.Command],
-                    orderManagerCheckoutListener: ActorRef[TypedCheckout.Event],
-                    orderManagerPaymentListener: ActorRef[Payment.Event],
-                    timers: TimerScheduler[Command]) {
+class TypedCheckout(
+  cart: ActorRef[TypedCartActor.Command],
+  orderManagerCheckoutListener: ActorRef[TypedCheckout.Event],
+  orderManagerPaymentListener: ActorRef[Payment.Event],
+  timers: TimerScheduler[Command]
+) {
   import TypedCheckout._
   private val log = LoggerFactory.getLogger(getClass)
 
@@ -72,23 +76,24 @@ class TypedCheckout(cart: ActorRef[TypedCartActor.Command],
       Behaviors.same
   }
 
-  def selectingPaymentMethod(): Behavior[Command] = Behaviors.receive((context, msg) => {
-    msg match {
-      case SelectPayment(payment) =>
-        cancelExpireCheckout()
-        val paymentRef = context.spawnAnonymous(Payment(payment, orderManagerPaymentListener, context.self))
-        orderManagerCheckoutListener ! PaymentStarted(paymentRef)
-        scheduleExpirePayment()
-        processingPayment()
-      case CancelCheckout =>
-        cancel()
-      case ExpireCheckout =>
-        cancel()
-      case _msg =>
-        log.warn(s"[selecting-payment] Received unexpected message ${_msg}")
-        Behaviors.same
-    }
-  })
+  def selectingPaymentMethod(): Behavior[Command] =
+    Behaviors.receive((context, msg) => {
+      msg match {
+        case SelectPayment(payment) =>
+          cancelExpireCheckout()
+          val paymentRef = context.spawnAnonymous(Payment(payment, orderManagerPaymentListener, context.self))
+          orderManagerCheckoutListener ! PaymentStarted(paymentRef)
+          scheduleExpirePayment()
+          processingPayment()
+        case CancelCheckout =>
+          cancel()
+        case ExpireCheckout =>
+          cancel()
+        case _msg =>
+          log.warn(s"[selecting-payment] Received unexpected message ${_msg}")
+          Behaviors.same
+      }
+    })
 
   def processingPayment(): Behavior[Command] = Behaviors.receiveMessage {
     case ConfirmPaymentReceived =>

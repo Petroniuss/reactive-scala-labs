@@ -22,9 +22,10 @@ object OrderManager {
   sealed trait Ack
   case object Done extends Ack //trivial ACK
 
-  def apply(): Behavior[OrderManager.Command] = Behaviors.withStash(100)(stash => {
-    new OrderManager(stash).start
-  })
+  def apply(): Behavior[OrderManager.Command] =
+    Behaviors.withStash(100)(stash => {
+      new OrderManager(stash).start
+    })
 
   val log: Logger = LoggerFactory.getLogger(OrderManager.getClass)
 }
@@ -32,24 +33,25 @@ object OrderManager {
 class OrderManager(stash: StashBuffer[OrderManager.Command]) {
   import OrderManager._
 
-  def start: Behavior[OrderManager.Command] = Behaviors.setup(context => {
-    val paymentListener = context.messageAdapter[Payment.Event] {
-      case PaymentReceived => ConfirmPaymentReceived
-    }
-    val checkoutListener = context.messageAdapter[TypedCheckout.Event] {
-      case TypedCheckout.CheckOutClosed => ConfirmCheckoutClosed
-      case TypedCheckout.PaymentStarted(payment) => ConfirmPaymentStarted(payment)
-    }
+  def start: Behavior[OrderManager.Command] =
+    Behaviors.setup(context => {
+      val paymentListener = context.messageAdapter[Payment.Event] {
+        case PaymentReceived => ConfirmPaymentReceived
+      }
+      val checkoutListener = context.messageAdapter[TypedCheckout.Event] {
+        case TypedCheckout.CheckOutClosed          => ConfirmCheckoutClosed
+        case TypedCheckout.PaymentStarted(payment) => ConfirmPaymentStarted(payment)
+      }
 
-    val cartListener = context.messageAdapter[TypedCartActor.Event] {
-      case TypedCartActor.CheckoutStarted(checkoutRef) => ConfirmCheckoutStarted(checkoutRef)
-    }
+      val cartListener = context.messageAdapter[TypedCartActor.Event] {
+        case TypedCartActor.CheckoutStarted(checkoutRef) => ConfirmCheckoutStarted(checkoutRef)
+      }
 
-    val cartBehavior = TypedCartActor(cartListener, checkoutListener, paymentListener)
-    val cartActor = context.spawnAnonymous(cartBehavior)
+      val cartBehavior = TypedCartActor(cartListener, checkoutListener, paymentListener)
+      val cartActor    = context.spawnAnonymous(cartBehavior)
 
-    open(cartActor)
-  })
+      open(cartActor)
+    })
 
   def open(cartActor: ActorRef[TypedCartActor.Command]): Behavior[OrderManager.Command] =
     Behaviors.receive((_context, msg) => {

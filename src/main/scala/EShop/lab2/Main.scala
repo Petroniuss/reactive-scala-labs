@@ -15,19 +15,20 @@ object Main extends App {
 }
 
 object Root {
-  def apply(): Behavior[Any] = Behaviors.setup(context => {
-    val orderManager = context.spawnAnonymous(OrderManager())
-    val sender = context.spawnAnonymous(SimpleSender())
-    
-    orderManager ! OrderManager.AddItem("Foo", sender)
-    orderManager ! OrderManager.AddItem("Bar", sender)
+  def apply(): Behavior[Any] =
+    Behaviors.setup(context => {
+      val orderManager = context.spawnAnonymous(OrderManager())
+      val sender       = context.spawnAnonymous(SimpleSender())
 
-    orderManager ! OrderManager.Buy(sender)
-    orderManager ! OrderManager.SelectDeliveryAndPaymentMethod("delivery-1", "payment-1", sender)
-    orderManager ! OrderManager.Pay(sender)
+      orderManager ! OrderManager.AddItem("Foo", sender)
+      orderManager ! OrderManager.AddItem("Bar", sender)
 
-    Behaviors.same
-  })
+      orderManager ! OrderManager.Buy(sender)
+      orderManager ! OrderManager.SelectDeliveryAndPaymentMethod("delivery-1", "payment-1", sender)
+      orderManager ! OrderManager.Pay(sender)
+
+      Behaviors.same
+    })
 
 }
 

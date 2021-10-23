@@ -207,11 +207,12 @@ object TypedCheckoutTest {
   val cancelledMsg              = "cancelled"
   val closedMsg                 = "closed"
 
-  def env(testKit: ActorTestKit):
-    (ActorRef[TypedCartActor.Command], ActorRef[TypedCheckout.Event], ActorRef[Payment.Event]) = {
-    val cartListener = testKit.createTestProbe[TypedCartActor.Event].ref
+  def env(
+    testKit: ActorTestKit
+  ): (ActorRef[TypedCartActor.Command], ActorRef[TypedCheckout.Event], ActorRef[Payment.Event]) = {
+    val cartListener     = testKit.createTestProbe[TypedCartActor.Event].ref
     val checkoutListener = testKit.createTestProbe[TypedCheckout.Event].ref
-    val paymentListener = testKit.createTestProbe[Payment.Event].ref
+    val paymentListener  = testKit.createTestProbe[Payment.Event].ref
 
     val cart = testKit.spawn(TypedCartActor(cartListener, checkoutListener, paymentListener))
     (cart, checkoutListener, paymentListener)
