@@ -208,7 +208,7 @@ object TypedCheckoutTest {
   val closedMsg                 = "closed"
 
   def env(testKit: ActorTestKit): (ActorRef[OrderManager.Command], ActorRef[TypedCartActor.Command]) = {
-    val orderManager = testKit.spawn(OrderManager())
+    val orderManager = testKit.createTestProbe[OrderManager.Command].ref
     val cart = testKit.spawn(TypedCartActor(orderManager))
 
     (orderManager, cart)

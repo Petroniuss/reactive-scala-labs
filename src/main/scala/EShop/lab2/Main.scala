@@ -17,8 +17,8 @@ object Main extends App {
 
 object Root {
   def apply(): Behavior[Any] = Behaviors.setup(context => {
-    val orderManager = context.spawn(OrderManager(), OrderManager.actorName())
-    val sender = context.spawn(SimpleSender(), SimpleSender.actorName())
+    val orderManager = context.spawnAnonymous(OrderManager())
+    val sender = context.spawnAnonymous(SimpleSender())
     
     orderManager ! OrderManager.AddItem("Foo", sender)
     orderManager ! OrderManager.AddItem("Bar", sender)
@@ -40,6 +40,4 @@ object SimpleSender {
       log.info("[Done]")
       Behaviors.same
   }
-
-  def actorName(): String = s"simple-sender-${UUID.randomUUID.toString}"
 }

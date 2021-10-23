@@ -14,12 +14,13 @@ import scala.concurrent.duration._
 object TypedCartActor {
 
   sealed trait Command
-  case class AddItem(item: String)        extends Command
-  case class RemoveItem(item: String)     extends Command
-  case object ExpireCart               extends Command
-  case object StartCheckout            extends Command
-  case object ConfirmCheckoutCancelled extends Command
-  case object ConfirmCheckoutClosed    extends Command
+  case class AddItem(item: String)                                          extends Command
+  case class RemoveItem(item: String)                                       extends Command
+  case object ExpireCart                                                    extends Command
+  case object StartCheckout                                                 extends Command
+  case object ConfirmCheckoutCancelled                                      extends Command
+  case object ConfirmCheckoutClosed                                         extends Command
+  case class GetItems(sender: ActorRef[Cart])                               extends Command
 
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef[Command]) extends Event
@@ -29,8 +30,6 @@ object TypedCartActor {
   def apply(orderManager: ActorRef[OrderManager.Command]): Behavior[Command] =
     Behaviors.withTimers(timers => new TypedCartActor(timers, orderManager).start)
 
-  def actorName(): String =
-    s"cart-actor-${UUID.randomUUID.toString}"
 }
 
 class TypedCartActor(timers: TimerScheduler[Command],
@@ -55,6 +54,9 @@ class TypedCartActor(timers: TimerScheduler[Command],
           case AddItem(item) =>
             scheduleExpireCart()
             nonEmpty(Cart.empty.addItem(item))
+          case GetItems(replyTo) =>
+            replyTo ! Cart.empty
+            Behaviors.same
           case _msg =>
             log.warn(s"[Empty] Received unexpected message ${_msg}")
             Behaviors.same
@@ -85,6 +87,9 @@ class TypedCartActor(timers: TimerScheduler[Command],
             checkout ! TypedCheckout.StartCheckout
             orderManager ! OrderManager.ConfirmCheckoutStarted(checkout)
             inCheckout(cart)
+          case GetItems(replyTo) =>
+            replyTo ! cart
+            Behaviors.same
           case _msg =>
             log.warn(s"[NonEmpty] Received unexpected message ${_msg}")
             Behaviors.same
@@ -99,6 +104,9 @@ class TypedCartActor(timers: TimerScheduler[Command],
             nonEmpty(cart)
           case ConfirmCheckoutClosed =>
             empty
+          case GetItems(replyTo) =>
+            replyTo ! cart
+            Behaviors.same
           case _msg =>
             log.warn(s"[InCheckout] Received unexpected message ${_msg}")
             Behaviors.same

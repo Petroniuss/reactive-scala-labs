@@ -196,7 +196,7 @@ object TypedCartActorTest {
   ): ActorRef[TypedCartActor.Command] =
     testKit.spawn {
       Behaviors.withTimers[TypedCartActor.Command] { timers =>
-        val orderManager = testKit.spawn(OrderManager())
+        val orderManager = testKit.createTestProbe[OrderManager.Command].ref
         val cartActor = new TypedCartActor(timers, orderManager) {
           override val cartTimerDuration: FiniteDuration = 1.seconds
 

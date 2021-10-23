@@ -15,8 +15,6 @@ object Payment {
             orderManager: ActorRef[OrderManager.Command],
             checkout: ActorRef[TypedCheckout.Command]): Behavior[Payment.Command] =
     new Payment(method, orderManager, checkout).start
-
-  def actorName(): String = s"payment-actor-${UUID.randomUUID.toString}"
 }
 
 class Payment(

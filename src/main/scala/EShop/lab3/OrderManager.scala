@@ -5,8 +5,6 @@ import akka.actor.typed.scaladsl.{Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
 import org.slf4j.{Logger, LoggerFactory}
 
-import java.util.UUID
-
 object OrderManager {
 
   sealed trait Command
@@ -26,8 +24,6 @@ object OrderManager {
     new OrderManager(stash).start
   })
 
-  def actorName(): String = s"order-manager-${UUID.randomUUID.toString}"
-
   val log: Logger = LoggerFactory.getLogger(OrderManager.getClass)
 }
 
@@ -35,7 +31,7 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
   import OrderManager._
 
   def start: Behavior[OrderManager.Command] = Behaviors.setup(context => {
-    val cartActor = context.spawn(TypedCartActor(context.self), TypedCartActor.actorName())
+    val cartActor = context.spawnAnonymous(TypedCartActor(context.self))
     open(cartActor)
   })
 
@@ -44,12 +40,15 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
       msg match {
         case AddItem(id, sender) =>
           cartActor ! TypedCartActor.AddItem(id)
+          sender ! Done
           Behaviors.same
         case RemoveItem(id, sender) =>
           cartActor ! TypedCartActor.RemoveItem(id)
+          sender ! Done
           Behaviors.same
         case Buy(sender) =>
           cartActor ! TypedCartActor.StartCheckout
+          sender ! Done
           Behaviors.same
         case ConfirmCheckoutStarted(checkoutRef) =>
           log.info("Checkout started")
@@ -67,6 +66,7 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
         case SelectDeliveryAndPaymentMethod(delivery, payment, sender) =>
           checkoutActorRef ! TypedCheckout.SelectDeliveryMethod(delivery)
           checkoutActorRef ! TypedCheckout.SelectPayment(payment)
+          sender ! Done
           Behaviors.same
         case ConfirmPaymentStarted(paymentRef) =>
           stash.unstashAll(inPayment(paymentRef))
@@ -82,6 +82,7 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
       msg match {
         case Pay(sender) =>
           paymentActorRef ! Payment.DoPayment
+          sender ! Done
           Behaviors.same
         case ConfirmPaymentReceived =>
           finished
