@@ -21,3 +21,5 @@ project/plugins/project/
 metals.sbt
 .vscode
 
+reactive-scala-labs-templates
+

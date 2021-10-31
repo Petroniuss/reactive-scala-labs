@@ -1,40 +1,52 @@
 package EShop.lab2
 
 import EShop.lab2.TypedCartActor.Command
+import EShop.lab3.Payment
 import akka.actor.typed.scaladsl.{Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
 import org.slf4j.LoggerFactory
 
-import scala.language.postfixOps
 import scala.concurrent.duration._
+import scala.language.postfixOps
 
 object TypedCartActor {
 
   sealed trait Command
-  case class AddItem(item: Any)        extends Command
-  case class RemoveItem(item: Any)     extends Command
-  case object ExpireCart               extends Command
-  case object StartCheckout            extends Command
-  case object ConfirmCheckoutCancelled extends Command
-  case object ConfirmCheckoutClosed    extends Command
+  case class AddItem(item: String)            extends Command
+  case class RemoveItem(item: String)         extends Command
+  case object ExpireCart                      extends Command
+  case object StartCheckout                   extends Command
+  case object ConfirmCheckoutCancelled        extends Command
+  case object ConfirmCheckoutClosed           extends Command
+  case class GetItems(sender: ActorRef[Cart]) extends Command
 
   sealed trait Event
-  case class CheckoutStarted(checkoutRef: ActorRef[Command]) extends Event
+  case class CheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command]) extends Event
 
   case object ExpireCartTimerKey
 
-  def apply(): Behavior[Command] =
-    Behaviors.withTimers(timers => new TypedCartActor(timers).start)
+  def apply(
+    orderManagerCartListener: ActorRef[TypedCartActor.Event],
+    orderManagerCheckoutListener: ActorRef[TypedCheckout.Event],
+    orderManagerPaymentListener: ActorRef[Payment.Event]
+  ): Behavior[Command] =
+    Behaviors.withTimers(
+      timers =>
+        new TypedCartActor(timers, orderManagerCartListener, orderManagerCheckoutListener, orderManagerPaymentListener).start
+    )
 }
 
-class TypedCartActor(timers: TimerScheduler[Command]) {
+class TypedCartActor(
+  timers: TimerScheduler[Command],
+  orderManagerCartListener: ActorRef[TypedCartActor.Event],
+  orderManagerCheckoutListener: ActorRef[TypedCheckout.Event],
+  orderManagerPaymentListener: ActorRef[Payment.Event]
+) {
   import TypedCartActor._
 
   val cartTimerDuration: FiniteDuration = 5 seconds
   private val log                       = LoggerFactory.getLogger(getClass)
 
-  // guarantees to reschedule timer or create a new one,
-  // events received from previous one will not be processed.
   private def scheduleExpireCart(): Unit =
     timers.startSingleTimer(ExpireCartTimerKey, ExpireCart, cartTimerDuration)
 
@@ -50,8 +62,11 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
           case AddItem(item) =>
             scheduleExpireCart()
             nonEmpty(Cart.empty.addItem(item))
+          case GetItems(replyTo) =>
+            replyTo ! Cart.empty
+            Behaviors.same
           case _msg =>
-            log.warn("Received unexpected message", msg)
+            log.warn(s"[Empty] Received unexpected message ${_msg}")
             Behaviors.same
       }
     )
@@ -75,11 +90,18 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
               nonEmpty(newCart)
             }
           case StartCheckout =>
-            val checkoutActor = context.spawnAnonymous(TypedCheckout(context.self))
-            checkoutActor ! TypedCheckout.StartCheckout
+            cancelExpireCartTimer()
+            val checkoutBehavior =
+              TypedCheckout(context.self, orderManagerCheckoutListener, orderManagerPaymentListener)
+            val checkout = context.spawnAnonymous(checkoutBehavior)
+            checkout ! TypedCheckout.StartCheckout
+            orderManagerCartListener ! CheckoutStarted(checkout)
             inCheckout(cart)
+          case GetItems(replyTo) =>
+            replyTo ! cart
+            Behaviors.same
           case _msg =>
-            log.warn("Received unexpected message", msg)
+            log.warn(s"[NonEmpty] Received unexpected message ${_msg}")
             Behaviors.same
       }
     )
@@ -92,8 +114,11 @@ class TypedCartActor(timers: TimerScheduler[Command]) {
             nonEmpty(cart)
           case ConfirmCheckoutClosed =>
             empty
+          case GetItems(replyTo) =>
+            replyTo ! cart
+            Behaviors.same
           case _msg =>
-            log.warn("Received unexpected message", msg)
+            log.warn(s"[InCheckout] Received unexpected message ${_msg}")
             Behaviors.same
       }
     )
