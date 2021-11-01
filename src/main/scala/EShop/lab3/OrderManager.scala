@@ -2,9 +2,13 @@ package EShop.lab3
 
 import EShop.lab2.{TypedCartActor, TypedCheckout}
 import EShop.lab3.Payment.{DoPayment, PaymentReceived}
-import akka.actor.typed.scaladsl.{Behaviors, StashBuffer}
+import EShop.lab4.PersistentCartActor
+import akka.actor.typed.scaladsl.{ActorContext, Behaviors, StashBuffer}
 import akka.actor.typed.{ActorRef, Behavior}
+import akka.persistence.typed.PersistenceId
 import org.slf4j.{Logger, LoggerFactory}
+
+import scala.util.Random
 
 object OrderManager {
 
@@ -22,36 +26,52 @@ object OrderManager {
   sealed trait Ack
   case object Done extends Ack //trivial ACK
 
-  def apply(): Behavior[OrderManager.Command] =
-    Behaviors.withStash(100)(stash => {
-      new OrderManager(stash).start
+  def apply(): Behavior[OrderManager.Command] = {
+    Behaviors.setup(context => {
+      Behaviors.withStash(100)(stash => {
+        new OrderManager(context, stash).start
+      })
+    })
+  }
+
+  def persistent(persistenceId: String): Behavior[OrderManager.Command] =
+    Behaviors.setup(context => {
+      Behaviors.withStash(100)(stash => {
+        new OrderManager(context, stash).startPersistent(persistenceId)
+      })
     })
 
   val log: Logger = LoggerFactory.getLogger(OrderManager.getClass)
 }
 
-class OrderManager(stash: StashBuffer[OrderManager.Command]) {
+class OrderManager(context: ActorContext[OrderManager.Command], stash: StashBuffer[OrderManager.Command]) {
   import OrderManager._
 
-  def start: Behavior[OrderManager.Command] =
-    Behaviors.setup(context => {
-      val paymentListener = context.messageAdapter[Payment.Event] {
-        case PaymentReceived => ConfirmPaymentReceived
-      }
-      val checkoutListener = context.messageAdapter[TypedCheckout.Event] {
-        case TypedCheckout.CheckOutClosed          => ConfirmCheckoutClosed
-        case TypedCheckout.PaymentStarted(payment) => ConfirmPaymentStarted(payment)
-      }
+  private val paymentListener = context.messageAdapter[Payment.Event] {
+    case PaymentReceived => ConfirmPaymentReceived
+  }
 
-      val cartListener = context.messageAdapter[TypedCartActor.Event] {
-        case TypedCartActor.CheckoutStarted(checkoutRef) => ConfirmCheckoutStarted(checkoutRef)
-      }
+  private val checkoutListener = context.messageAdapter[TypedCheckout.Event] {
+    case TypedCheckout.CheckOutClosed          => ConfirmCheckoutClosed
+    case TypedCheckout.PaymentStarted(payment) => ConfirmPaymentStarted(payment)
+  }
 
-      val cartBehavior = TypedCartActor(cartListener, checkoutListener, paymentListener)
-      val cartActor    = context.spawnAnonymous(cartBehavior)
+  private val cartListener = context.messageAdapter[TypedCartActor.Event] {
+    case TypedCartActor.CheckoutStarted(checkoutRef) => ConfirmCheckoutStarted(checkoutRef)
+  }
 
-      open(cartActor)
-    })
+  def start: Behavior[OrderManager.Command] = {
+    val cartBehavior = TypedCartActor(cartListener, checkoutListener, paymentListener)
+    val cartActor    = context.spawnAnonymous(cartBehavior)
+    open(cartActor)
+  }
+
+  def startPersistent(id: String): Behavior[OrderManager.Command] = {
+    val cartBehavior = PersistentCartActor(id, cartListener, checkoutListener, paymentListener)
+    val cartActor    = context.spawnAnonymous(cartBehavior)
+
+    open(cartActor)
+  }
 
   def open(cartActor: ActorRef[TypedCartActor.Command]): Behavior[OrderManager.Command] =
     Behaviors.receive((_context, msg) => {
@@ -118,4 +138,5 @@ class OrderManager(stash: StashBuffer[OrderManager.Command]) {
     log.info("Finished ordering..")
     start
   }
+
 }

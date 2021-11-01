@@ -29,6 +29,17 @@ object TypedCheckout {
   sealed trait Event
   case object CheckOutClosed                                    extends Event
   case class PaymentStarted(payment: ActorRef[Payment.Command]) extends Event
+  case object CheckoutStarted                                   extends Event
+  case object CheckoutCancelled                                 extends Event
+  case class DeliveryMethodSelected(method: String)             extends Event
+
+  sealed abstract class State
+  case object WaitingForStart        extends State
+  case object SelectingDelivery      extends State
+  case object SelectingPaymentMethod extends State
+  case object Closed                 extends State
+  case object Cancelled              extends State
+  case object ProcessingPayment      extends State
 
   case object ExpireCheckoutTimerKey
   case object ExpirePaymentTimerKey
