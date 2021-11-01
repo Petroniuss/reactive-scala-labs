@@ -41,6 +41,7 @@ object PersistentCheckout {
     }
   }
 
+  val entityTypeHint: String = "PersistentCheckout"
 }
 
 class PersistentCheckout(

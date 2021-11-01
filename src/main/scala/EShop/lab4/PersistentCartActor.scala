@@ -4,7 +4,7 @@ import EShop.lab2.TypedCartActor._
 import EShop.lab2.{Cart, TypedCartActor, TypedCheckout}
 import EShop.lab3.Payment
 import akka.actor.typed.scaladsl.{ActorContext, Behaviors, TimerScheduler}
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, Behavior, PreRestart}
 import akka.persistence.typed.scaladsl.{Effect, EventSourcedBehavior}
 import akka.persistence.typed.{PersistenceId, RecoveryCompleted}
 
@@ -20,7 +20,7 @@ object PersistentCartActor {
   ): Behavior[TypedCartActor.Command] = {
     Behaviors.setup { (context: ActorContext[Command]) =>
       Behaviors.withTimers { (timers: TimerScheduler[Command]) =>
-        val persistenceId = PersistenceId.of(PersistentCartActor.getClass.getName, id)
+        val persistenceId = PersistenceId.of(PersistentCartActor.entityTypeHint, id)
         val ref = new PersistentCartActor(
           context,
           timers,
@@ -42,6 +42,8 @@ object PersistentCartActor {
       }
     }
   }
+
+  val entityTypeHint: String = "PersistentCartActor"
 }
 
 class PersistentCartActor(
@@ -85,6 +87,7 @@ class PersistentCartActor(
           case GetItems(replyTo) =>
             Effect.reply(replyTo)(cart)
           case ExpireCart =>
+            println("Received Expire Cart!")
             Effect.persist(CartExpired)
           case StartCheckout =>
             Effect
@@ -135,7 +138,7 @@ class PersistentCartActor(
       case CheckoutSStarted =>
         cancelExpireCartTimer()
         val checkoutBehavior = PersistentCheckout(
-          PersistenceId.of(PersistentCheckout.getClass.getName, id),
+          PersistenceId.of(PersistentCheckout.entityTypeHint, id),
           context.self,
           orderManagerCheckoutListener,
           orderManagerPaymentListener
@@ -153,8 +156,9 @@ class PersistentCartActor(
     }
   }
 
-  private def reScheduleExpireCart(): Unit =
-    timers.startSingleTimer(ExpireCartTimerKey, ExpireCart, cartTimerDuration)
+  private def reScheduleExpireCart(): Unit = {
+    timers.startSingleTimer(ExpireCartTimerKey, ExpireCart, 1.millisecond)
+  }
 
   private def cancelExpireCartTimer(): Unit =
     timers.cancel(ExpireCartTimerKey)
