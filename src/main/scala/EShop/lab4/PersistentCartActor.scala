@@ -57,7 +57,7 @@ class PersistentCartActor(
 
   // commandHandler should handle some sort of validation
   // via coordination with other actors etc after this operating it can do call Effect.thenRun
-  // and some stateful things (like spawning persistent actors)
+  // and do stateful things
   def commandHandler(): (State, Command) => Effect[Event, State] = (state, command) => {
     state match {
       case Empty =>
@@ -87,29 +87,17 @@ class PersistentCartActor(
           case ExpireCart =>
             Effect.persist(CartExpired)
           case StartCheckout =>
-            // spawning checkout actor should happen in effectHandler
-            // as this actor would be recreated
-            val checkoutBehavior =
-              PersistentCheckout(
-                PersistenceId.of(PersistentCheckout.getClass.getName, id),
-                context.self,
-                orderManagerCheckoutListener,
-                orderManagerPaymentListener
-              )
-            val checkoutRef = context.spawnAnonymous(checkoutBehavior)
-            val event       = CheckoutStarted(checkoutRef)
             Effect
-              .persist(event)
-              .thenRun { (_: State) =>
-                checkoutRef ! TypedCheckout.StartCheckout
-              }
-              .thenRun { (_: State) =>
-                orderManagerCartListener ! event
+              .persist(CheckoutSStarted)
+              .thenRun {
+                case InCheckout(_, checkoutRef) =>
+                  checkoutRef ! TypedCheckout.StartCheckout
+                  orderManagerCartListener ! CheckoutStarted(checkoutRef)
               }
           case _ =>
             unhandled(state, command)
         }
-      case InCheckout(cart) =>
+      case InCheckout(cart, _) =>
         command match {
           case GetItems(replyTo) =>
             Effect.reply(replyTo)(cart)
@@ -134,8 +122,9 @@ class PersistentCartActor(
   // timers?
   // As timers are a transient state they should be created in eventHandler.
   // transient actors should be created in EventHandler
+  // we're creating checkout actor here as during recovering we want this actor
+  // to recover its state
   def eventHandler(): (State, Event) => State = (state, event) => {
-    // should be very simple except for the fact that we need to schedule timers
     event match {
       case ItemAdded(item) =>
         reScheduleExpireCart()
@@ -143,9 +132,16 @@ class PersistentCartActor(
       case ItemRemoved(item) =>
         reScheduleExpireCart()
         NonEmpty(state.cart.removeItem(item))
-      case CheckoutStarted(_) =>
+      case CheckoutSStarted =>
         cancelExpireCartTimer()
-        InCheckout(state.cart)
+        val checkoutBehavior = PersistentCheckout(
+          PersistenceId.of(PersistentCheckout.getClass.getName, id),
+          context.self,
+          orderManagerCheckoutListener,
+          orderManagerPaymentListener
+        )
+        val checkoutRef = context.spawnAnonymous(checkoutBehavior)
+        InCheckout(state.cart, checkoutRef)
       case CartEmptied | CartExpired =>
         cancelExpireCartTimer()
         Empty

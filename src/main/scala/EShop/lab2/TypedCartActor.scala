@@ -23,6 +23,7 @@ object TypedCartActor {
 
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command]) extends Event
+  case object CheckoutSStarted                                             extends Event
   case class ItemAdded(item: String)                                       extends Event
   case class ItemRemoved(item: String)                                     extends Event
   case object CartEmptied                                                  extends Event
@@ -38,8 +39,8 @@ object TypedCartActor {
   case object Empty extends State {
     override def cart: Cart = Cart.empty
   }
-  case class NonEmpty(cart: Cart)   extends State
-  case class InCheckout(cart: Cart) extends State
+  case class NonEmpty(cart: Cart)                                                 extends State
+  case class InCheckout(cart: Cart, checkoutRef: ActorRef[TypedCheckout.Command]) extends State
 
   def apply(
     orderManagerCartListener: ActorRef[TypedCartActor.Event],

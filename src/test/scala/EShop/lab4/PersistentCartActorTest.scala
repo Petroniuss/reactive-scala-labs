@@ -82,7 +82,7 @@ class PersistentCartActorTest
     val resultStartCheckout =
       eventSourcedTestKit.runCommand(StartCheckout)
 
-    resultStartCheckout.event.isInstanceOf[CheckoutStarted] shouldBe true
+    resultStartCheckout.event shouldBe CheckoutSStarted
     resultStartCheckout.state.isInstanceOf[InCheckout] shouldBe true
   }
 
@@ -95,7 +95,7 @@ class PersistentCartActorTest
     val resultStartCheckout =
       eventSourcedTestKit.runCommand(StartCheckout)
 
-    resultStartCheckout.event.isInstanceOf[CheckoutStarted] shouldBe true
+    resultStartCheckout.event shouldBe CheckoutSStarted
     resultStartCheckout.state.isInstanceOf[InCheckout] shouldBe true
 
     val resultCancelCheckout =
@@ -114,7 +114,7 @@ class PersistentCartActorTest
     val resultStartCheckout =
       eventSourcedTestKit.runCommand(StartCheckout)
 
-    resultStartCheckout.event.isInstanceOf[CheckoutStarted] shouldBe true
+    resultStartCheckout.event shouldBe CheckoutSStarted
     resultStartCheckout.state.isInstanceOf[InCheckout] shouldBe true
 
     val resultCloseCheckout =
@@ -133,7 +133,7 @@ class PersistentCartActorTest
     val resultStartCheckout =
       eventSourcedTestKit.runCommand(StartCheckout)
 
-    resultStartCheckout.event.isInstanceOf[CheckoutStarted] shouldBe true
+    resultStartCheckout.event shouldBe CheckoutSStarted
     resultStartCheckout.state.isInstanceOf[InCheckout] shouldBe true
 
     val resultAdd2 = eventSourcedTestKit.runCommand(AddItem("Henryk V"))
