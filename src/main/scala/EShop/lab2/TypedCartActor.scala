@@ -2,6 +2,7 @@ package EShop.lab2
 
 import EShop.lab2.TypedCartActor.Command
 import EShop.lab3.Payment
+import akka.actor.Cancellable
 import akka.actor.typed.scaladsl.{Behaviors, TimerScheduler}
 import akka.actor.typed.{ActorRef, Behavior}
 import org.slf4j.LoggerFactory
@@ -12,18 +13,34 @@ import scala.language.postfixOps
 object TypedCartActor {
 
   sealed trait Command
-  case class AddItem(item: String)            extends Command
-  case class RemoveItem(item: String)         extends Command
-  case object ExpireCart                      extends Command
-  case object StartCheckout                   extends Command
-  case object ConfirmCheckoutCancelled        extends Command
-  case object ConfirmCheckoutClosed           extends Command
-  case class GetItems(sender: ActorRef[Cart]) extends Command
+  case class AddItem(item: String)             extends Command
+  case class RemoveItem(item: String)          extends Command
+  case object ExpireCart                       extends Command
+  case object StartCheckout                    extends Command
+  case object ConfirmCheckoutCancelled         extends Command
+  case object ConfirmCheckoutClosed            extends Command
+  case class GetItems(replyTo: ActorRef[Cart]) extends Command
 
   sealed trait Event
   case class CheckoutStarted(checkoutRef: ActorRef[TypedCheckout.Command]) extends Event
+  case object CheckoutSStarted                                             extends Event
+  case class ItemAdded(item: String)                                       extends Event
+  case class ItemRemoved(item: String)                                     extends Event
+  case object CartEmptied                                                  extends Event
+  case object CartExpired                                                  extends Event
+  case object CheckoutClosed                                               extends Event
+  case object CheckoutCancelled                                            extends Event
 
   case object ExpireCartTimerKey
+
+  sealed abstract class State {
+    def cart: Cart
+  }
+  case object Empty extends State {
+    override def cart: Cart = Cart.empty
+  }
+  case class NonEmpty(cart: Cart)                                                 extends State
+  case class InCheckout(cart: Cart, checkoutRef: ActorRef[TypedCheckout.Command]) extends State
 
   def apply(
     orderManagerCartListener: ActorRef[TypedCartActor.Event],

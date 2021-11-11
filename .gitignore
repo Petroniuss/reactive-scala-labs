@@ -19,6 +19,7 @@ project/plugins/project/
 .bloop
 .metals
 metals.sbt
+.bsp
 .vscode
 
 reactive-scala-labs-templates
