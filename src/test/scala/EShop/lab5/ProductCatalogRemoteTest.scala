@@ -1,7 +1,7 @@
 package EShop.lab5
 
 import EShop.lab5.ProductCatalog.GetItems
-import akka.actor.typed.{ActorRef, ActorSystem}
+import akka.actor.typed.{ActorRef, ActorSystem, Scheduler}
 import akka.actor.typed.receptionist.Receptionist
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.Behaviors
@@ -24,8 +24,8 @@ class ProductCatalogRemoteTest extends AsyncFlatSpecLike with Matchers {
     actorSystem.systemActorOf(ProductCatalog(new SearchService()), "productcatalog")
 
     val anotherActorSystem =
-      ActorSystem[Nothing](Behaviors.empty, "ProductCatalogX")
-    implicit val scheduler = anotherActorSystem.scheduler
+      ActorSystem[Nothing](Behaviors.empty, "ProductCatalog")
+    implicit val scheduler: Scheduler = anotherActorSystem.scheduler
 
     // wait for the cluster to form up
     Thread.sleep(3000)
