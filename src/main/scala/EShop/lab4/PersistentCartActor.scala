@@ -156,9 +156,8 @@ class PersistentCartActor(
     }
   }
 
-  private def reScheduleExpireCart(): Unit = {
+  private def reScheduleExpireCart(): Unit =
     timers.startSingleTimer(ExpireCartTimerKey, ExpireCart, 1.millisecond)
-  }
 
   private def cancelExpireCartTimer(): Unit =
     timers.cancel(ExpireCartTimerKey)

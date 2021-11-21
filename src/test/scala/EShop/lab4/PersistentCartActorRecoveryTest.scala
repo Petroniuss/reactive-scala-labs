@@ -14,9 +14,9 @@ import scala.util.Random
 
 class PersistentCartActorRecoveryTest
   extends ScalaTestWithActorTestKit(EventSourcedBehaviorTestKit.config)
-    with AnyFlatSpecLike
-    with BeforeAndAfterAll
-    with BeforeAndAfterEach {
+  with AnyFlatSpecLike
+  with BeforeAndAfterAll
+  with BeforeAndAfterEach {
 
   import EShop.lab2.TypedCartActor._
 
@@ -97,7 +97,7 @@ class PersistentCartActorRecoveryTest
 
   private def recover(events: Seq[Event]): EventSourcedBehaviorTestKit.RestartResult[State] = {
     val persistenceTestKit = eventSourcedTestKit.persistenceTestKit
-    val persistenceId = PersistenceId.of(PersistentCartActor.entityTypeHint, id)
+    val persistenceId      = PersistenceId.of(PersistentCartActor.entityTypeHint, id)
     persistenceTestKit.persistForRecovery(persistenceId.id, events)
     eventSourcedTestKit.restart()
   }
