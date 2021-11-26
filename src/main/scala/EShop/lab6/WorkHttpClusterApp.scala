@@ -69,7 +69,7 @@ object ClusterNodeApp extends App {
     "ClusterWorkRouters",
     config
       .getConfig(Try(args(0)).getOrElse("seed-node1"))
-      .withFallback(config)
+      .withFallback(config.getConfig("cluster-default"))
   )
 
   Await.ready(system.whenTerminated, Duration.Inf)
@@ -121,11 +121,5 @@ class WorkHttpServerInCluster() extends JsonSupport {
     val bindingFuture = Http().newServerAt("localhost", port).bind(routes)
     println(s"Server now online.\nPress RETURN to stop...")
     StdIn.readLine() // let it run until user presses return
-    bindingFuture
-      .flatMap(_.unbind()) // trigger unbinding from the port
-      .onComplete { _ =>
-        system.terminate()
-        workersNodes.foreach(_.terminate())
-      } // and shutdown when done
   }
 }
