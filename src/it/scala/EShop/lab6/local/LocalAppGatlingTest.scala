@@ -22,6 +22,6 @@ class LocalAppGatlingTest extends Simulation {
     .pause(5)
 
   setUp(
-    scn.inject(rampUsers(12000).during(1.minute))
+    scn.inject(rampUsers(20000).during(1.minute))
   ).protocols(httpProtocol)
 }

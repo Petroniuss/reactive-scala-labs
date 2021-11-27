@@ -1,12 +1,13 @@
 package EShop.lab6.cluster
 
 import EShop.lab5.{ProductCatalog, ProductCatalogJsonSupport}
+import EShop.lab6.sub.{RequestCounter, RequestCounterCommand, RequestProductsEndpointHitsCount}
 import akka.actor.typed.scaladsl.AskPattern.Askable
 import akka.actor.typed.scaladsl.{Behaviors, Routers}
 import akka.actor.typed.{ActorRef, ActorSystem}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.server.Directives.{_symbol2NR, complete, get, parameter, parameters, path}
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{Directives, Route}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 
@@ -36,7 +37,10 @@ class HttpServerNode() extends ProductCatalogJsonSupport {
   val workers: ActorRef[ProductCatalog.Query] =
     system.systemActorOf(Routers.group(ProductCatalog.ProductCatalogServiceKey), "clusterWorkerRouter")
 
-  def routes: Route = {
+  val requestCounter: ActorRef[RequestCounterCommand] =
+    system.systemActorOf(Routers.group(RequestCounter.RequestCounterServiceKey), "requestCounterRouter")
+
+  def routes: Route = Directives.concat(
     path("products") {
       get {
         parameters(Symbol("keywords").as[String].repeated) { keywords =>
@@ -54,8 +58,21 @@ class HttpServerNode() extends ProductCatalogJsonSupport {
           }
         }
       }
+    },
+    path("metrics") {
+      get {
+        complete {
+          requestCounter
+            .ask(ref => RequestProductsEndpointHitsCount(ref))
+            .map { hitsCount =>
+              s"""{
+                 | "/products": $hitsCount
+                 |}""".stripMargin
+            }
+        }
+      }
     }
-  }
+  )
 
   def run(port: Int): Unit = {
     val bindingFuture = Http().newServerAt("localhost", port).bind(routes)

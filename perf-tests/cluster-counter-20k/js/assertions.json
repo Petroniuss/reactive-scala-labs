@@ -1,0 +1,10 @@
+{
+  "simulation": "EShop.lab6.local.LocalAppGatlingTest",
+  "simulationId": "localappgatlingtest",
+  "start": 1638016683981,
+  "description": "",
+  "scenarios": ["BasicSimulation"],
+  "assertions": [
+
+  ]
+}
